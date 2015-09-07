@@ -1,0 +1,5 @@
+f :: Int -> Int
+
+aaa x y = p
+    where p = f x + y
+
