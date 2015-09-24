@@ -4,23 +4,27 @@
 #define _CA_H
 
 #ifdef CA_EXTERN
-static int gs_iLogOutput = 1;
+       int gs_iLogOutput = 1;
 #else
-extern int sg_iLogOutput;
+extern int gs_iLogOutput;
 #endif
+
+
+#define  RTN_OK       (  0 )
+#define  RTN_PRMERR   ( -2 )
 
 /** 円周率 */
 #define DEF_PI                      ( 3.1415926535898 )
 
 /** 赤道半径 */
-#if 1
+#if 0
 #define DEF_EQUATORIAL_RADIUS       ( 10000.0 )
 #else
 #define DEF_EQUATORIAL_RADIUS       ( 6378137.0 )
 #endif
 
 /** 扁平率 */
-#if 1
+#if 0
 #define DEF_OBLATENESS              ( 0.0 )
 #else
 #define DEF_OBLATENESS              ( 1.0 / 298.257223563 )
@@ -68,6 +72,55 @@ extern int sg_iLogOutput;
 #define CA_ALOG_ERROR                     COMN_ALOG_ERROR
 #define CA_ALOG_PARAM_ERROR               COMN_ALOG_PARAM_ERROR
 #define CA_ALOG_LOGIC_ERROR               COMN_ALOG_LOGIC_ERROR
+
+
+#define  CA_ABS( X )      ( ( X ) >= 0.0 ? ( X ) : ( X ) * ( -1.0 ) )
+#define  DMIN( X, Y )     ( ( X ) <= ( Y ) ? ( X ) : ( Y ) )
+#define  DMAX( X, Y )     ( ( X ) >= ( Y ) ? ( X ) : ( Y ) )
+
+/* ASUB( P1, P2, PT )  PTがP1～P2の間の場合には、0、間ではない場合には1を返す */
+#define  ASUB( P1, P2, PT )    ( {                                             \
+                               double _psi1, _psi2, _psiT;                     \
+                               double _phi1, _phi2, _phiT;                     \
+                               int    _res;                                    \
+                                                                               \
+                               /* 小さい方を _psi1 とする */                   \
+                               _psi1 = DMIN( P1, P2 );                         \
+                               _psi2 = DMAX( P1, P2 );                         \
+                                                                               \
+                               /* 角度幅をπ以内とし、_phi1、_phi2とする。  */ \
+                               if( _psi2 - _psi1 > DEF_PI )                    \
+                               {                                               \
+                                   _phi1 = _psi2 - 2.0 * DEF_PI;               \
+                                   _phi2 = _psi1;                              \
+                               }                                               \
+                               else                                            \
+                               {                                               \
+                                   _phi1 = _psi1;                              \
+                                   _phi2 = _psi2;                              \
+                               }                                               \
+                                                                               \
+                               /* 評価値の調整 */                              \
+                               _phiT = PT;                                     \
+                               if( PT < _phi1 )                                \
+                               {                                               \
+                                   _phiT = PT + 2.0 * DEF_PI;                  \
+                               }                                               \
+                               else if( PT > _phi2 )                           \
+                               {                                               \
+                                   _phiT = PT - 2.0 * DEF_PI;                  \
+                               }                                               \
+                                                                               \
+                               /* 判定 */                                      \
+                               _res = 1;                                       \
+                               if( _phi1 <= _phiT && _phiT <= _phi2 )          \
+                               {                                               \
+                                   _res = 0;                                   \
+                               }                                               \
+                                                                               \
+                               /* 判定結果の返却 */                            \
+                               _res;                                           \
+                               })
 
 /**
 * 度分秒から度の変換
@@ -126,6 +179,8 @@ int COMN_CA_CalcPlane( STR_POSXYZ *, STR_POSXYZ *, STR_POSXYZ *, STR_PLANE  * );
 int COMN_CA_CalcCrossLine( STR_PLANE *, STR_PLANE *, STR_LINE  * );
 int COMN_CA_CalcCrossPoint( double, double, STR_LINE *, STR_POSXYZ *, STR_POSXYZ * );
 int COMN_CA_CalcDistance( STR_LATLON *, STR_LATLON *, double * );
-
+int COMN_CA_CalcDirection( STR_LATLON *, STR_LATLON *, double * );
+int COMN_CA_CalcPotision(STR_LATLON *, double, double, STR_LATLON * );
+int COMN_CA_CalcLation( STR_LATLON *, STR_LATLON *, STR_LATLON *, STR_LATLON *, STR_LATLON *, int * );
 #endif
 

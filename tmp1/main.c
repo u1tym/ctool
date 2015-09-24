@@ -18,7 +18,9 @@ int main( int argc, char *argv[] )
 
     /* tst1(); */
     /* tst2(); */
-    tst3();
+    /* tst3(); */
+    tst4();
+    /* tst5(); */
 #else
     int          iRet;
     STR_LATLON   tP1;
@@ -219,5 +221,68 @@ LABEL_END:
     return iRetValue;
 }
 
+int tst4( void )
+{
+    int        iRet;
+    int        ires;
+    STR_LATLON res;
+    STR_LATLON p1, p2;
+    STR_LATLON L1, L2;
 
+    double     d1, d2;
+
+    p1.dLat =   5.0;
+    p1.dLon =   5.0;
+
+    p2.dLat =  15.0;
+    p2.dLon =  90.0;
+
+    L1.dLat =  89.99998333;
+    L1.dLon =  45.0;
+
+    L2.dLat = -89.99998333;
+    L2.dLon =  45.0;
+
+    iRet = COMN_CA_CalcLation( &p1, &p2, &L1, &L2, &res, &ires );
+
+    CA_ALOG_DBGUT1_TRACE( "結果=%d",   ires );
+    CA_ALOG_DBGUT1_TRACE( "緯度=%.3f", res.dLat );
+    CA_ALOG_DBGUT1_TRACE( "経度=%.3f", res.dLon );
+
+    ( void )COMN_CA_CalcDirection( &p1, &p2, &d1 );
+    ( void )COMN_CA_CalcDirection( &p1, &res, &d2 );
+
+    CA_ALOG_DBGUT1_TRACE( "P1から見たP2の方位 = %.9f", CALC_RAD_TO_DEG( d1 ) );
+    CA_ALOG_DBGUT1_TRACE( "P1から見たPTの方位 = %.9f", CALC_RAD_TO_DEG( d2 ) );
+
+    double dist;
+    STR_LATLON ooooo;
+
+    COMN_CA_CalcDistance( &p1, &p2, &dist );
+
+    COMN_CA_CalcPotision( &p1, dist, d2, &ooooo );
+
+    CA_ALOG_DBGUT1_TRACE( "距離             = %.9f", dist );
+    CA_ALOG_DBGUT1_TRACE( "方角             = %.9f", d2 );
+    CA_ALOG_DBGUT1_TRACE( "計算した地点 Lat = %.9f", ooooo.dLat );
+    CA_ALOG_DBGUT1_TRACE( "             Lon = %.9f", ooooo.dLon );
+
+    return 0;
+}
+
+
+int tst5( void )
+{
+    STR_LATLON p1, p2;
+
+    p1.dLat = 5.0;
+    p1.dLon = 5.0;
+
+    COMN_CA_CalcPotision( &p1, 9338782.078182688, 1.316936164, &p2 );
+
+    CA_ALOG_DBGUT1_TRACE( "p2 lat=%.9f", p2.dLat );
+    CA_ALOG_DBGUT1_TRACE( "   lon=%.9f", p2.dLon );
+
+    return 0;
+}
 

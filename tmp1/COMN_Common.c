@@ -548,3 +548,510 @@ LABEL_END:
     return iRetValue;
 }
 
+
+/***************************************************************************//**
+*
+* 関数名 : 2地点間の方位算出処理
+*
+* *****************************************************************************
+*
+* @breif
+*   地点１からみた地点２の方位（真方位）を算出する。算出値の単位はラジアンとす
+*   る。
+*
+* @param[in]  tpP1                 - 地点１
+* @param[in]  tpP2                 - 地点２
+* @param[out] dpOutput             - 方位（真方位）
+*
+* @retval     RTN_OK               - 正常
+* @retval     RTN_PRMERR           - パラメータ不正
+*
+*******************************************************************************/
+int COMN_CA_CalcDirection(STR_LATLON *tpP1, STR_LATLON *tpP2, double *dpOutput)
+{
+    int     iRetValue;                 /**< 戻り値設定用                      */
+
+    double  dP1_Phi;                   /**< 地点１緯度                        */
+    double  dP1_Phi_K;                 /**< 地点１化成緯度                    */
+    double  dP1_Lamda;                 /**< 地点１経度                        */
+    double  dP2_Phi;                   /**< 地点２緯度                        */
+    double  dP2_Phi_K;                 /**< 地点２化成緯度                    */
+    double  dP2_Lamda;                 /**< 地点２経度                        */
+
+    double  dF;                        /**< 扁平率                            */
+    double  dA;                        /**< 長半径（赤道半径）                */
+    double  dB;                        /**< 短半径                            */
+
+    double  dH;                        /**< ２地点の経度の差                  */
+    double  dZ;                        /**< 一時計算値                        */
+    double  dResult;                   /**< 方角                              */
+
+
+    /*==========*/
+    /* 処理開始 */
+    /*==========*/
+
+/*    CA_ALOG_DBGUT1_TRACE( "%.3f/%.3f から見た %.3f/%.3f の方位算出", */
+/*                          tpP1->dLat, tpP1->dLon,                    */
+/*                          tpP2->dLat, tpP2->dLon );                  */
+
+    /*====================*/
+    /* パラメータチェック */
+    /*====================*/
+
+    if(tpP1 == (STR_LATLON *)NULL
+       || tpP2 == (STR_LATLON *)NULL
+       || dpOutput == (double *)NULL)
+    {
+        iRetValue = RTN_PRMERR;
+        goto LABEL_END;
+    }
+
+
+    /*======*/
+    /* 算出 */
+    /*======*/
+
+    /* 扁平率 */
+    dF = DEF_OBLATENESS;
+
+    /* 半径 */
+    dA = DEF_EQUATORIAL_RADIUS;
+    dB = dA * ( 1 - dF );
+
+    /* 緯度経度のラジアン表記 */
+    dP1_Phi   = tpP1->dLat * DEF_PI / 180;
+    dP1_Lamda = tpP1->dLon * DEF_PI / 180;
+
+    dP2_Phi   = tpP2->dLat * DEF_PI / 180;
+    dP2_Lamda = tpP2->dLon * DEF_PI / 180;
+
+    /* 化成緯度の算出 */
+    dP1_Phi_K = atan( dB / dA * tan( dP1_Phi ) );
+    dP2_Phi_K = atan( dB / dA * tan( dP2_Phi ) );
+
+    /* 2地点の経度の差 */
+    dH        = dP1_Lamda - dP2_Lamda;
+
+    if( CA_ABS( dH ) < 0.000001 )
+    {
+        if( dP1_Phi >= dP2_Phi )
+        {
+            *dpOutput = DEF_PI;
+        }
+        else
+        {
+            *dpOutput = 0.0;
+        }
+
+        iRetValue = RTN_OK;
+
+        goto LABEL_END;
+    }
+
+    if( dH < 0 )
+    {
+        dH += ( 2.0 * DEF_PI );
+    }
+
+    dZ = atan( sin( dH ) /
+             ( cos( dP1_Phi_K ) * tan( dP2_Phi_K )
+             - sin( dP1_Phi_K ) * cos( dH ) ) );
+
+    /*======================*/
+    /* 算出結果を方位に変換 */
+    /*======================*/
+
+    /* CA_ALOG_DBGUT1_TRACE( "dH = %.6f", dH ); */
+    /* CA_ALOG_DBGUT1_TRACE( "dZ = %.6f", dZ ); */
+
+    if( dH > DEF_PI && dZ < 0 )
+    {
+        dResult = dZ * ( -1.0 );
+    }
+    else if( dH > DEF_PI && dZ >= 0 )
+    {
+        dResult = DEF_PI - dZ;
+    }
+    else if( dH < DEF_PI && dZ < 0 )
+    {
+        dResult = DEF_PI + ( -1.0 ) * dZ;
+    }
+    else if( dH < DEF_PI && dZ >= 0 )
+    {
+        dResult = 2.0 * DEF_PI - dZ;
+    }
+
+    *dpOutput = dResult;
+
+    iRetValue = RTN_OK;
+
+
+    /*==========*/
+    /* 終了処理 */
+    /*==========*/
+
+LABEL_END:
+
+/*    CA_ALOG_DBGUT1_TRACE( "方位 = %.3f °",                  */
+/*                          CALC_RAD_TO_DEG( dResult ) );     */
+    return iRetValue;
+}
+
+
+
+int COMN_CA_CalcPotision(STR_LATLON *tpP,
+                         double dDir, double dDist, STR_LATLON *tpOutput)
+{
+    int     iRetValue;                 /**< 戻り値設定用                      */
+    int     iCnt;                      /**< カウンタ                          */
+
+    double  dF;                        /**< 扁平率                            */
+    double  dA;                        /**< 長半径（赤道半径）                */
+    double  dB;                        /**< 短半径                            */
+
+    double  dPhi1;                     /**< 地点緯度                          */
+    double  dLambda1;                  /**< 地点経度                          */
+
+    double  dS;                        /**< 指定距離                          */
+    double  dSinAlpha12;               /**< 指定方位角                        */
+    double  dCosAlpha12;               /**< 指定方位角                        */
+
+    double  dSigma1;                   /**< 計算用変数                        */
+    double  dTanSigma1;                /**< 計算用変数                        */
+    double  dCosU1;                    /**< 計算用変数                        */
+    double  dSinAlpha_2;               /**< 計算用変数                        */
+    double  dCA;                       /**< 計算用変数                        */
+    double  dCB;                       /**< 計算用変数                        */
+    double  dSigma;                    /**< 計算用変数                        */
+    double  dDeltaSigma;               /**< 計算用変数                        */
+    double  d2SigmaM;                  /**< 計算用変数                        */
+    double  dSinSigma;                 /**< 計算用変数                        */
+    double  dSinSigma_2;               /**< 計算用変数                        */
+    double  dCosSigma;                 /**< 計算用変数                        */
+    double  dCos2SigmaM;               /**< 計算用変数                        */
+    double  dCos2SigmaM_2;             /**< 計算用変数                        */
+    double  dTmp1;                     /**< 計算用変数                        */
+    double  dTmp2;                     /**< 計算用変数                        */
+    double  dTmp3;                     /**< 計算用変数                        */
+    double  dTmp4;                     /**< 計算用変数                        */
+    double  dTmp5;                     /**< 計算用変数                        */
+    double  dNumerator;                /**< 計算用変数                        */
+    double  dDenominator;              /**< 計算用変数                        */
+    double  dU1;                       /**< 計算用変数                        */
+    double  dSinU1;                    /**< 計算用変数                        */
+    double  dTanPhi2;                  /**< 計算用変数                        */
+    double  dPhi2;                     /**< 計算用変数                        */
+    double  dTanLambda;                /**< 計算用変数                        */
+    double  dC;                        /**< 計算用変数                        */
+    double  dCosAlpha_2;               /**< 計算用変数                        */
+    double  dOmega;                    /**< 計算用変数                        */
+    double  dLambda;                   /**< 計算用変数                        */
+    double  dLambda2;                  /**< 計算用変数                        */
+    double  dTanU1;                    /**< 計算用変数                        */
+    double  dSinAlpha;                 /**< 計算用変数                        */
+    double  dU2;                       /**< 計算用変数                        */
+
+
+    /*==========*/
+    /* 処理開始 */
+    /*==========*/
+
+
+    /*====================*/
+    /* パラメータチェック */
+    /*====================*/
+
+    if(tpP == (STR_LATLON *)NULL
+       || dDist <= 0.0
+       || tpOutput == (STR_LATLON *)NULL)
+    {
+        COMN_ALOG_ENTER("tpP      = 0x%x", tpP);
+        COMN_ALOG_ENTER("dDist    = %f", dDist);
+        COMN_ALOG_ENTER("tpOutput = 0x%x", tpOutput);
+
+        iRetValue = RTN_PRMERR;
+        goto LABEL_END;
+    }
+
+
+    /*==============*/
+    /* 規定値の算出 */
+    /*==============*/
+
+    /* 扁平率 */
+    dF = DEF_OBLATENESS;
+
+    /* 半径 */
+    dA = DEF_EQUATORIAL_RADIUS;
+    dB = dA * ( 1 - dF );
+
+
+    /* 緯度経度のラジアン表記 */
+    dPhi1    = tpP->dLat * DEF_PI / 180.0;
+    dLambda1 = tpP->dLon * DEF_PI / 180.0;
+
+    /* 指定方位角 */
+    dSinAlpha12 = sin( dDir );
+    dCosAlpha12 = cos( dDir );
+
+    /* 距離 */
+    dS = dDist;
+
+
+    /*======*/
+    /* 算出 */
+    /*======*/
+
+    /* tan U1 = ( 1 - F ) tan φ1 */
+
+    dTanU1 = ( 1.0 - dF ) * tan( dPhi1 );
+
+    /* CA_ALOG_DBGUT1_TRACE( "tanU1 = %.3f", dTanU1 ); */
+
+    /* tan σ1 = tan U1 / cos α12 */
+    /* σ1     = atan( tan σ1 )   */
+
+    dTanSigma1 = dTanU1 / dCosAlpha12;
+    dSigma1 = atan( dTanSigma1 );
+
+    /* sin alpha */
+    dSinAlpha   = dCosU1 * dSinAlpha12;
+    dSinAlpha_2 = pow( dSinAlpha, 2 );
+
+    /* u^2 */
+    dU2 = ( 1 - pow( dSinAlpha, 2 ) ) * ( pow( dA, 2 ) - pow( dB, 2 ) ) / pow( dB, 2 );
+
+    /* CA_ALOG_DBGUT1_TRACE( "u^2 = %.3f", dU2 ); */
+
+    /* A, B */
+    dCA = 1.0 + ( dU2 / 16384.0 ) * ( 4096.0 + dU2 * ( -768.0 + dU2 * ( 320.0 - 175.0 * dU2 ) ) );
+    dCB = ( dU2 / 1024.0 ) * ( 256.0 + dU2 * ( -128.0 + dU2 * ( 74.0 - 47.0 * dU2 ) ) );
+
+    /* CA_ALOG_DBGUT1_TRACE( "A = %.3f", dCA ); */
+    /* CA_ALOG_DBGUT1_TRACE( "B = %.3f", dCB ); */
+
+    /* sigma */
+    dSigma = dS / ( dB * dCA );
+
+    /* CA_ALOG_DBGUT1_TRACE( "sigma = %.8f", dSigma ); */
+
+    /* delta_sigma が十分小さくなるまで繰り返す */
+    for( iCnt = 0; ; ++iCnt )
+    {
+        /* 2σm = 2σ1 + σ */
+        d2SigmaM = 2.0 * dSigma1 + dSigma;
+
+        dSinSigma     = sin( dSigma );
+        dSinSigma_2   = pow( sin( dSigma ), 2 );
+        dCosSigma     = cos( dSigma );
+        dCos2SigmaM   = cos( d2SigmaM );
+        dCos2SigmaM_2 = pow( dCos2SigmaM, 2 );
+
+        dTmp1         = -1.0 + 2.0 * dCos2SigmaM_2;
+        dTmp2         = -3.0 + 4.0 * dSinSigma_2;
+        dTmp3         = -3.0 + 4.0 * dCos2SigmaM_2;
+
+        dDeltaSigma   = dCB
+                        * dSinSigma
+                        * ( dCos2SigmaM
+                            + dCB / 4.0
+                            * ( dCosSigma * dTmp1
+                                - dCB / 6.0
+                                * dCos2SigmaM * dTmp2 * dTmp3 ) );
+
+        dSigma        = dS / ( dB * dCA ) + dDeltaSigma;
+
+        /* CA_ALOG_DBGUT1_TRACE( "sigma     = %.8f", dSigma ); */
+        /* CA_ALOG_DBGUT1_TRACE( "d sigma   = %.8f", dDeltaSigma ); */
+        /* CA_ALOG_DBGUT1_TRACE( "2 sigma m = %.8f", d2SigmaM ); */
+
+        if( -0.001 < dDeltaSigma && dDeltaSigma < 0.001 )
+        {
+            break;
+        }
+    }
+
+    dU1 = atan( dTanU1 );
+
+    /* sin U1 */
+    dSinU1 = sin( dU1 );
+    dCosU1 = cos( dU1 );
+
+    /* sin sigma, cos sigme */
+    dSinSigma = sin( dSigma );
+    dCosSigma = cos( dSigma );
+
+    dNumerator   = dSinU1 * dCosSigma + dCosU1 * dSinSigma * dCosAlpha12;
+    dTmp4        = dSinU1 * dSinSigma - dCosU1 * dCosSigma * dCosAlpha12;
+    dTmp5        = pow( dTmp4, 2 );
+    dDenominator = ( 1.0 - dF ) * sqrt( dSinAlpha_2 + dTmp5 );
+
+    /* phi2 */
+    dTanPhi2 = dNumerator / dDenominator;
+    dPhi2    = atan( dTanPhi2 );
+
+    /* CA_ALOG_DBGUT1_TRACE( "sin U1   = %.6f", dSinU1 ); */
+    /* CA_ALOG_DBGUT1_TRACE( "cos U1   = %.6f", dCosU1 ); */
+
+    /* CA_ALOG_DBGUT1_TRACE( "tan phi2 = %.6f", dTanPhi2 ); */
+    /* CA_ALOG_DBGUT1_TRACE( "phi2     = .6f", dPhi2 ); */
+
+    dTanLambda = ( dSinSigma * dSinAlpha12 )
+               / ( dCosU1 * dCosSigma - dSinU1 * dSinSigma * dCosAlpha12 );
+    dLambda    = atan( dTanLambda );
+    dC         = ( dF / 16.0 ) * dCosAlpha_2 * ( 4.0 + dF * ( 4.0 - 3.0 * dCosAlpha_2 ) );
+    dOmega     = dLambda
+               - ( 1.0 - dC )
+               * dF * dSinAlpha
+               * ( dSigma + dC * dSinSigma
+               * ( dCos2SigmaM + dC * dCosSigma * ( -1.0 + 2.0 * dCos2SigmaM_2 ) ) );
+    dLambda2   = dLambda1 + dLambda;
+
+    /* 緯度経度のラジアン表記 */
+    tpOutput->dLat = dPhi2    * 180.0 / DEF_PI;
+    tpOutput->dLon = dLambda2 * 180.0 / DEF_PI;
+
+
+    iRetValue = RTN_OK;
+
+
+    /*==========*/
+    /* 処理終了 */
+    /*==========*/
+
+LABEL_END:
+    /* COMN_ALOG_EXIT("Ret=%d", iRetValue); */
+    return iRetValue;
+}
+
+
+
+int COMN_CA_CalcLation( STR_LATLON *tpLatLonSt1,
+                        STR_LATLON *tpLatLonEd1,
+                        STR_LATLON *tpLatLonSt2,
+                        STR_LATLON *tpLatLonEd2,
+                        STR_LATLON *tpLatLon,
+                        int        *ipSts )
+{
+    double theta1, theta2, thetaT;
+    double omega1, omega2, omegaT;
+
+    int    iRet;
+    int    iRet1;
+    int    iRet2;
+
+    STR_LATLON Q1;
+    STR_LATLON Q2;
+    STR_LATLON Q_Dash;
+
+    int        iCnt;
+    double     dist;
+    double     dir;
+    double     dir_Dash;
+
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt1, tpLatLonSt2, &theta1 );
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt1, tpLatLonEd2, &theta2 );
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt1, tpLatLonEd1, &thetaT );
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt2, tpLatLonSt1, &omega1 );
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt2, tpLatLonEd1, &omega2 );
+
+    ( void )COMN_CA_CalcDirection( tpLatLonSt2, tpLatLonEd2, &omegaT );
+
+    CA_ALOG_DBGUT1_TRACE( "θ1=%.3f θ2=%.3f θT=%.3f", theta1, theta2, thetaT );
+    CA_ALOG_DBGUT1_TRACE( "ω1=%.3f ω2=%.3f ωT=%.3f", omega1, omega2, omegaT );
+
+    CA_ALOG_DBGUT1_TRACE( "t1=%.3f t2=%.3f tT=%.3f",
+                          CALC_RAD_TO_DEG( theta1 ),                                                                                   
+                          CALC_RAD_TO_DEG( theta2 ),                                                                                   
+                          CALC_RAD_TO_DEG( thetaT ) );
+    CA_ALOG_DBGUT1_TRACE( "o1=%.3f o2=%.3f oT=%.3f",
+                          CALC_RAD_TO_DEG( omega1 ),                                                                                   
+                          CALC_RAD_TO_DEG( omega2 ),                                                                                   
+                          CALC_RAD_TO_DEG( omegaT ) );
+                                                                                   
+    iRet1 = ASUB( theta1, theta2, thetaT );
+    iRet2 = ASUB( omega1, omega2, omegaT );
+
+    CA_ALOG_DBGUT1_TRACE( "t 判定結果=%d", iRet1 );
+    CA_ALOG_DBGUT1_TRACE( "o 判定結果=%d", iRet2 );
+
+    if( iRet1 != 0 || iRet2 != 0 )
+    {
+        CA_ALOG_DBGUT1_TRACE( "交点なし" );
+
+        *ipSts = 1;
+        return 0;
+    }
+
+    Q1 = *tpLatLonSt2;
+    Q2 = *tpLatLonEd2;
+
+    for( iCnt = 0; iCnt < 100; ++iCnt )
+    {
+
+        iRet = COMN_CA_CalcDistance( &Q1, &Q2, &dist );
+        if( iRet != 0 )
+        {
+            CA_ALOG_ERROR( "処理異常" );
+            return 1;
+        }
+
+        iRet = COMN_CA_CalcDirection( &Q1, &Q2, &dir );
+        if( iRet != 0 )
+        {
+            CA_ALOG_ERROR( "処理異常" );
+            return 1;
+        }
+
+        /* CA_ALOG_DBGUT1_TRACE( "Q1 = %.3f/%.3f", Q1.dLat, Q1.dLon ); */
+        /* CA_ALOG_DBGUT1_TRACE( "Q2 = %.3f/%.3f", Q2.dLat, Q2.dLon ); */
+        /* CA_ALOG_DBGUT1_TRACE( "Dis(Q1,Q2) = %.3f", dist ); */
+        /* CA_ALOG_DBGUT1_TRACE( "Dir(Q1,Q2) = %.3f", CALC_RAD_TO_DEG( dir ) ); */
+
+        ( void )COMN_CA_CalcPotision( &Q1, dir, dist / 2.0, &Q_Dash );
+
+        /* CA_ALOG_DBGUT1_TRACE( "CP = %.3f/%.3f", Q_Dash.dLat, Q_Dash.dLon ); */
+
+
+        ( void )COMN_CA_CalcDirection( tpLatLonSt1, &Q_Dash, &dir_Dash );
+
+        CA_ALOG_DBGUT1_TRACE( "%d Q' = %.6f/%.6f", iCnt, Q_Dash.dLat, Q_Dash.dLon );
+
+        if( CA_ABS( thetaT - dir_Dash ) < 0.00000001 )
+        {
+            *tpLatLon = Q_Dash;
+            *ipSts = 0;
+            break;
+        }
+
+
+        iRet1 = ASUB( theta1, thetaT, dir_Dash );
+        iRet2 = ASUB( thetaT, theta2, dir_Dash );
+
+        if( iRet1 == 0 )
+        {
+            /* CA_ALOG_DBGUT1_TRACE( "-> Q1 = Q'" ); */
+            Q1 = Q_Dash;
+        }
+        else if( iRet2 == 0 )
+        {
+            /* CA_ALOG_DBGUT1_TRACE( "-> Q2 = Q'" ); */
+            Q2 = Q_Dash;
+        }
+        else
+        {
+            CA_ALOG_ERROR( "処理異常" );
+            return 1;
+        }
+
+    }
+
+    return 0;
+}
+
