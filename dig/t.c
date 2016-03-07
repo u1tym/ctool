@@ -7,36 +7,41 @@
 #define MxOD    ( 19 )
 #define URAD    ( 180.0 / 3.14159265359 )
 
+#define RA      ( 6371.2 )
+#define RE      ( 6378.16 )
+#define RE2     ( RE * RE )
+#define RE4     ( RE2 * RE2 )
+
+#define RPRE    ( 1.0 - 1.0 / 298.25 )
+
+#define RP      ( RE * RPRE )
+#define RP2     ( RP * RP )
+#define RP4     ( RP2 * RP2 )
+
+
+
+
+
 static double tzero;
 static int    kext;
-static double ra;
-static double re;
-static double re2;
-static double re4;
-static double rp;
-static double rp2;
-static double rp4;
-static double rpre;
 static double ext0;
 static double ext1;
 static double ext2;
+
 static int    maxod;
+
 static int    kg;
 static int    kgc;
 static int    kph;
+
 static double gh[ MxOD + 1 ][ MxOD + 1 ];
 static double ght[ MxOD + 1 ][ MxOD + 1 ];
 static double g[ MxOD + 1 ][ MxOD + 1 ];
 double vgh[ MxOD + 1 ][ MxOD + 1 ];
 double vght[ MxOD + 1 ][ MxOD + 1 ];
-static double p[ MxOD + 2 ][ MxOD + 1 ];
-static double rar[ MxOD + 1 ];
-static double csp[ MxOD + 1 ];
-static double snp[ MxOD + 1 ];
 
 static double blat;
 static double blon;
-static double bhi;
 static double rlat;
 static double slat;
 static double slat2;
@@ -64,9 +69,9 @@ void tcoef( double agh[ MxOD + 1 ][ MxOD + 1 ],
             double atzero, int kexta, double aext[ 3 ] );
 void tyear( double ayear );
 void igrfc( double fido, double fkeido, double hght, double *tf );
-void mfldg( double alat, double alon, double ahi,
+void mfldg( double alat, double alon,
             double *ax, double *ay, double *az, double *af );
-static void fcalc( void );
+static void fcalc( double *, double *, double *, double * );
 
 static float rf[7][120] = {
         { -30339., -2123.,  5758.,
@@ -217,14 +222,14 @@ static float sv[7][80] = {
 
 
 void sigrf( void )
-{   int    maxod, i, n, m, l;
-    double tzero, dmy[ 3 ];
+{   int    maxod_tmp, i, n, m, l;
+    double tzero_tmp, dmy[ 3 ];
 
     l     =  6;
-    maxod = 10;
-    tzero = 2000.0;
+    maxod_tmp = 10;
+    tzero_tmp = 2000.0;
 
-    for( i = 0, n = 1; n <= maxod; ++n)
+    for( i = 0, n = 1; n <= maxod_tmp; ++n)
     {
         vgh[ 0 ][ n ] = rf[ l ][ i ];
 
@@ -236,6 +241,9 @@ void sigrf( void )
         {
             vght[ 0 ][ n ] = 0.0 ;
         }
+
+/* fprintf( stdout, "vght[ 0 ][ %d ] = %f\n", n, vght[ 0 ][ n ] ); */
+/* fflush( stdout ); */
 
         ++i;
 
@@ -249,6 +257,9 @@ void sigrf( void )
                 vght[ m ][ n ] = sv[ l ][ i ];
             }
 
+/* fprintf( stdout, "vght[ %d ][ %d ] = %f\n", m, n, vght[ m ][ n ] ); */
+/* fflush( stdout ); */
+
             ++i;
 
             vgh[ n ][ m - 1 ] = rf[ l ][ i ];
@@ -259,12 +270,15 @@ void sigrf( void )
                 vght[ n ][ m - 1 ] = sv[ l ][ i ];
             }
 
+/* fprintf( stdout, "vght[ %d ][ %d ] = %f\n", n, ( m - 1 ), vght[ n ][ m - 1 ] ); */
+/* fflush( stdout ); */
+
             ++i;
         }
     }
 
-    field( 6378.16, 298.25, 6371.2, maxod );
-    tcoef( vgh, vght, tzero, 0, dmy );
+    field( 6378.16, 298.25, 6371.2, maxod_tmp );
+    tcoef( vgh, vght, tzero_tmp, 0, dmy );
     tyear( 2010.0 );
 
     return;
@@ -272,15 +286,8 @@ void sigrf( void )
 
 void field( double are, double aflat, double ara, int maxoda )
 {
-    ra    = ara;
     maxod = maxoda;
-    rpre  = 1.0 - 1.0 / aflat;
-    re    = are;
-    re2   = re * re;
-    re4   = re2 * re2;
-    rp    = re * rpre;
-    rp2   = rp * rp;
-    rp4   = rp2 * rp2;
+ 
     kg    = 2;
     kgc   = 0;
     kph   = 1;
@@ -354,7 +361,7 @@ void tyear( double ayear )
 void igrfc( double fido, double fkeido, double hght, double *tf )
 {
     double fx, fy, fz;
-    mfldg( fido, fkeido, hght / 1000.0, &fx, &fy, &fz, tf );
+    mfldg( fido, fkeido, &fx, &fy, &fz, tf );
 
     fprintf( stdout, "[igrfc] x=%f, y=%f, z=%f, f=%f\n", fx, fy, fz, *tf );
     fflush( stdout );
@@ -362,28 +369,27 @@ void igrfc( double fido, double fkeido, double hght, double *tf )
     return;
 }
 
-void mfldg( double alat, double alon, double ahi,
+void mfldg( double alat, double alon,
             double *ax, double *ay, double *az, double *af )
 {
-    double hi, rm2, rm, rrm;
+    double rm2, rm, rrm;
 
-    if( ( kg != 1 ) || ( blat != alat ) || ( bhi != ahi ) )
+    if( ( kg != 1 ) || ( blat != alat ) )
     {
         kg    = 1;
         kr    = 1;
         kth   = 1;
+
         blat  = alat;
-        bhi   = ahi;
         rlat  = alat / URAD;
-        hi    = ahi;
         slat  = sin( rlat );
         slat2 = slat * slat;
         clat2 = 1.0 - slat2;
-        rm2   = re2 * clat2 + rp2 * slat2;
+        rm2   = RE2 * clat2 + RP2 * slat2;
         rm    = sqrt( rm2 );
-        rrm   = ( re4 * clat2 + rp4 * slat2 ) / rm2;
-        r     = sqrt( rrm + 2.0 * hi * rm + hi * hi );
-        cth   = slat * ( hi + rp2 / rm ) / r;
+        rrm   = ( RE4 * clat2 + RP4 * slat2 ) / rm2;
+        r     = sqrt( rrm );
+        cth   = slat * ( RP2 / rm ) / r;
         sth   = sqrt( 1.0 - cth * cth );
     }
 
@@ -400,12 +406,16 @@ void mfldg( double alat, double alon, double ahi,
         sph  = sin( phi );
     }
 
-    fcalc();
+    fcalc( ax, ay, az, af );
 
-    *ax = x;
-    *ay = y;
-    *az = z;
-    *af = f;
+/*    *ax = x; */
+/*    *ay = y; */
+/*    *az = z; */
+/*    *af = f; */
+    x = *ax;
+    y = *ay;
+    z = *az;
+    f = *af;
 
     return;
 }
@@ -413,98 +423,111 @@ void mfldg( double alat, double alon, double ahi,
 /**
  * This is an internal function
  */
-static void fcalc( void )
+static void fcalc( double *dpX, double *dpY, double *dpZ, double *dpF )
 {
-    double t, pn1m, tx, ty, tz; int n, m;
+    double dT;
+    double dPn1m;
+    double dTx;
+    double dTy;
+    double dTz;
+    int    iCnt, iInd;
+    double dP[ MxOD + 2 ][ MxOD + 1 ];
+    double dCsp[ MxOD + 1 ];
+    double dSnp[ MxOD + 1 ];
+    double dRar[ MxOD + 1 ];
 
-    if( kr != 0 )
+
+    memset( dP, 0x00, sizeof( dP ) );
+    memset( dCsp, 0x00, sizeof( dCsp ) );
+    memset( dSnp, 0x00, sizeof( dSnp ) );
+    memset( dRar, 0x00, sizeof( dRar ) );
+
+
+    /* このとき、krは1 */
+    dT        = RA / r;
+    dRar[ 0 ] = dT * dT;
+
+    for( iCnt = 0; iCnt < maxod; ++iCnt )
     {
-        kr       = 0;
-        t        = ra / r;
-        rar[ 0 ] = t * t;
+        dRar[ iCnt + 1 ] = dRar[ iCnt ] * dT;
+    }
 
-        for( n = 0; n < maxod; ++n )
+    /* このとき、kthは1 */
+    kth = 0;
+    dP[ 0 ][ 0 ] = 1.0;
+    dP[ 1 ][ 0 ] = 0.0;
+    dP[ 0 ][ 1 ] = cth;
+    dP[ 1 ][ 1 ] = sth;
+    dP[ 2 ][ 0 ] = -sth;
+    dP[ 2 ][ 1 ] = cth;
+
+    for( iCnt = 1; iCnt < maxod; ++iCnt)
+    {
+        dP[ 0 ][ iCnt + 1 ] = ( dP[ 0 ][ iCnt ] * cth * ( iCnt + iCnt + 1 ) - dP[ 0 ][ iCnt - 1 ] * iCnt )
+                          / ( iCnt + 1 );
+        dP[ iCnt + 2 ][ 0 ] = ( dP[ 0 ][ iCnt + 1 ] * cth - dP[ 0 ][ iCnt ] ) * ( iCnt + 1 ) / sth;
+
+        for( iInd = 0; iInd <= iCnt; ++iInd)
         {
-            rar[ n + 1 ] = rar[ n ] * t;
+            dPn1m = dP[ iInd ][ iCnt + 1 ];
+            dP[ iInd + 1 ][ iCnt + 1 ] = ( dP[ iInd ][ iCnt ] * ( iCnt + iInd + 1 )
+                                  - dPn1m * cth * ( iCnt - iInd + 1 ) ) / sth;
+            dP[ iCnt + 2 ][ iInd + 1 ] = dPn1m * ( iCnt + iInd + 2 ) * ( iCnt - iInd + 1 )
+                                  - dP[ iInd + 1 ][ iCnt + 1 ] * cth * ( iInd + 1 ) / sth;
         }
     }
 
-    if( kth != 0 )
+
+    kph = 0;
+    dCsp[ 0 ] = 1.0;
+    dSnp[ 0 ] = 0.0;
+
+    for( iInd = 0; iInd < maxod; ++iInd)
     {
-        kth = 0;
-        p[ 0 ][ 0 ] = 1.0;
-        p[ 1 ][ 0 ] = 0.0;
-        p[ 0 ][ 1 ] = cth;
-        p[ 1 ][ 1 ] = sth;
-        p[ 2 ][ 0 ] = -sth;
-        p[ 2 ][ 1 ] = cth;
-
-        for( n = 1; n < maxod; ++n)
-        {
-            p[ 0 ][ n + 1 ] = ( p[ 0 ][ n ] * cth * ( n + n + 1 ) - p[ 0 ][ n - 1 ] * n )
-                              / ( n + 1 );
-            p[ n + 2 ][ 0 ] = ( p[ 0 ][ n + 1 ] * cth - p[ 0 ][ n ] ) * ( n + 1 ) / sth;
-
-            for( m = 0; m <= n; ++m)
-            {
-                pn1m = p[ m ][ n + 1 ];
-                p[ m + 1 ][ n + 1 ] = ( p[ m ][ n ] * ( n + m + 1 )
-                                      - pn1m * cth * ( n - m + 1 ) ) / sth;
-                p[ n + 2 ][ m + 1 ] = pn1m * ( n + m + 2 ) * ( n - m + 1 )
-                                      - p[ m + 1 ][ n + 1 ] * cth * ( m + 1 ) / sth;
-            }
-        }
+        dCsp[ iInd + 1 ] = dCsp[ iInd ] * cph - dSnp[ iInd ] * sph;
+        dSnp[ iInd + 1 ] = dSnp[ iInd ] * cph + dCsp[ iInd ] * sph;
     }
 
-    if( kph != 0 )
+
+
+    *dpX = 0.0;
+    *dpY = 0.0;
+    *dpZ = 0.0;
+
+    for( iCnt = 0; iCnt < maxod; ++iCnt)
     {
-        kph = 0;
-        csp[ 0 ] = 1.0;
-        snp[ 0 ] = 0.0;
+        dTx = g[ 0 ][ iCnt + 1 ] * dP[ iCnt + 2 ][ 0 ];
+        dTy = 0.0;
+        dTz = g[ 0 ][ iCnt + 1 ] * dP[ 0 ][ iCnt + 1 ];
 
-        for( m = 0; m < maxod; ++m)
+        for( iInd = 0; iInd <= iCnt; ++iInd )
         {
-            csp[ m + 1 ] = csp[ m ] * cph - snp[ m ] * sph;
-            snp[ m + 1 ] = snp[ m ] * cph + csp[ m ] * sph;
-        }
-    }
-
-    x = 0.0;
-    y = 0.0;
-    z = 0.0;
-
-    for( n = 0; n < maxod; ++n)
-    {
-        tx = g[ 0 ][ n + 1 ] * p[ n + 2 ][ 0 ];
-        ty = 0.0;
-        tz = g[ 0 ][ n + 1 ] * p[ 0 ][ n + 1 ];
-
-        for( m = 0; m <= n; ++m )
-        {
-            tx += ( g[ m + 1 ][ n + 1 ] * csp[ m + 1 ]
-                  + g[ n + 1 ][ m ] * snp[ m + 1 ] ) * p[ n + 2 ][ m + 1 ];
-            ty += ( g[ m + 1 ][ n + 1 ] * snp[ m + 1 ]
-                  - g[ n + 1 ][ m ] * csp[ m + 1 ] ) * p[ m + 1 ][ n + 1] * ( m + 1 );
-            tz += ( g[ m + 1 ][ n + 1 ] * csp[ m + 1 ]
-                  + g[ n + 1 ][ m ] * snp[ m + 1 ] ) * p[ m + 1][ n + 1 ];
+            dTx += ( g[ iInd + 1 ][ iCnt + 1 ] * dCsp[ iInd + 1 ]
+                  + g[ iCnt + 1 ][ iInd ] * dSnp[ iInd + 1 ] ) * dP[ iCnt + 2 ][ iInd + 1 ];
+            dTy += ( g[ iInd + 1 ][ iCnt + 1 ] * dSnp[ iInd + 1 ]
+                  - g[ iCnt + 1 ][ iInd ] * dCsp[ iInd + 1 ] ) * dP[ iInd + 1 ][ iCnt + 1] * ( iInd + 1 );
+            dTz += ( g[ iInd + 1 ][ iCnt + 1 ] * dCsp[ iInd + 1 ]
+                  + g[ iCnt + 1 ][ iInd ] * dSnp[ iInd + 1 ] ) * dP[ iInd + 1][ iCnt + 1 ];
         }
 
-        x += rar[ n + 1 ] * tx;
-        y += rar[ n + 1 ] * ty;
-        z -= rar[ n + 1 ] * tz *( n + 2 );
+        *dpX += dRar[ iCnt + 1 ] * dTx;
+        *dpY += dRar[ iCnt + 1 ] * dTy;
+        *dpZ -= dRar[ iCnt + 1 ] * dTz *( iCnt + 2 );
     }
 
-    y /= sth;
+    *dpY /= sth;
 
     if( kext != 0 )
     {
-        t  = ext1 * cph + ext2 * sph;
-        x -= ( ext0 * cth + t * sth );
-        y += ( ext1 * sph - ext2 * cph );
-        z += ( ext0 * sth - t * cth );
+        dT  = ext1 * cph + ext2 * sph;
+        *dpX -= ( ext0 * cth + dT * sth );
+        *dpY += ( ext1 * sph - ext2 * cph );
+        *dpZ += ( ext0 * sth - dT * cth );
     }
 
-    f = sqrt( x * x + y * y + z * z );
+    *dpF = sqrt( *dpX * *dpX + *dpY * *dpY + *dpZ * *dpZ );
+
+    return;
 }
 
 void gcomp( double *axg, double *ayg, double *azg )
@@ -517,6 +540,7 @@ void gcomp( double *axg, double *ayg, double *azg )
         kgc  = 0;
         clat = sqrt( clat2 );
     }
+#if 0
     else if( ( kgc == 0 ) || ( bthc != bthe ) )
     {
         kgc  = 1;
@@ -528,17 +552,17 @@ void gcomp( double *axg, double *ayg, double *azg )
         {
             rc    = r * cth;
             rs    = r * sth;
-            rep2  = re2 - rp2;
+            rep2  = RE2 - RP2;
             tlat  = slat / clat;
             tlat2 = tlat * tlat;
             rlat  = atan( tlat );
 
             do{
                 rlatp  = rlat;
-                rmc2   = re2 + rp2 * tlat2;
+                rmc2   = RE2 + RP2 * tlat2;
                 rmc    = sqrt( rmc2 );
                 rmc3   = rmc2 * rmc;
-                ffp    = rp2 * rep2 * tlat / rmc3 + rc / tlat2;
+                ffp    = RP2 * rep2 * tlat / rmc3 + rc / tlat2;
                 ff     = rep2 / rmc + rc / tlat - rs;
                 tlat  += ff / ffp;
                 tlat2  = tlat * tlat;
@@ -551,6 +575,7 @@ void gcomp( double *axg, double *ayg, double *azg )
             slat  = tlat * clat;
         }
     }
+#endif
 
     cga  = cth * slat + sth * clat;
     sga  = cth * clat - sth * slat;
@@ -565,6 +590,9 @@ void gcomp( double *axg, double *ayg, double *azg )
 
 int debug( void )
 {
+#if 1
+    return 0;
+#else
     int i, j;
 
     for( i = 0; i < MxOD + 1; ++i )
@@ -603,5 +631,6 @@ int debug( void )
     fprintf( stdout, "kph   = %f\n", kph );
 
     return 0;
+#endif
 }
 
