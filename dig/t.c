@@ -27,8 +27,8 @@ static int    kph;
 static double gh[ MxOD + 1 ][ MxOD + 1 ];
 static double ght[ MxOD + 1 ][ MxOD + 1 ];
 static double g[ MxOD + 1 ][ MxOD + 1 ];
-static double vgh[ MxOD + 1 ][ MxOD + 1 ];
-static double vght[ MxOD + 1 ][ MxOD + 1 ];
+double vgh[ MxOD + 1 ][ MxOD + 1 ];
+double vght[ MxOD + 1 ][ MxOD + 1 ];
 static double p[ MxOD + 2 ][ MxOD + 1 ];
 static double rar[ MxOD + 1 ];
 static double csp[ MxOD + 1 ];
@@ -356,6 +356,9 @@ void igrfc( double fido, double fkeido, double hght, double *tf )
     double fx, fy, fz;
     mfldg( fido, fkeido, hght / 1000.0, &fx, &fy, &fz, tf );
 
+    fprintf( stdout, "[igrfc] x=%f, y=%f, z=%f, f=%f\n", fx, fy, fz, *tf );
+    fflush( stdout );
+
     return;
 }
 
@@ -558,5 +561,47 @@ void gcomp( double *axg, double *ayg, double *azg )
     *azg = zg;
 
     return;
+}
+
+int debug( void )
+{
+    int i, j;
+
+    for( i = 0; i < MxOD + 1; ++i )
+    {
+        for( j = 0; j < MxOD + 1; ++j )
+        {
+            fprintf( stdout, "vgh[%d][%d]=%f\n", i, j, vgh[ i ][ j ] );
+        }
+    }
+    for( i = 0; i < MxOD + 1; ++i )
+    {
+        for( j = 0; j < MxOD + 1; ++j )
+        {
+            fprintf( stdout, "vght[%d][%d]=%f\n", i, j, vght[ i ][ j ] );
+        }
+    }
+    for( i = 0; i < MxOD + 1; ++i )
+    {
+        for( j = 0; j < MxOD + 1; ++j )
+        {
+            fprintf( stdout, "g[%d][%d]=%f\n", i, j, g[ i ][ j ] );
+        }
+    }
+
+    fprintf( stdout, "maxod = %d\n", maxod );
+    fprintf( stdout, "ra    = %f\n", ra );
+    fprintf( stdout, "rpre  = %f\n", rpre );
+    fprintf( stdout, "re    = %f\n", re );
+    fprintf( stdout, "re2   = %f\n", re2 );
+    fprintf( stdout, "re4   = %f\n", re4 );
+    fprintf( stdout, "rp    = %f\n", rp );
+    fprintf( stdout, "rp2   = %f\n", rp2 );
+    fprintf( stdout, "rp4   = %f\n", rp4 );
+    fprintf( stdout, "kg    = %f\n", kg );
+    fprintf( stdout, "kgc   = %f\n", kgc );
+    fprintf( stdout, "kph   = %f\n", kph );
+
+    return 0;
 }
 
