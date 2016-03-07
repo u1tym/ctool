@@ -590,47 +590,6 @@ void gcomp( double *axg, double *ayg, double *azg )
 
 int debug( void )
 {
-#if 1
     return 0;
-#else
-    int i, j;
-
-    for( i = 0; i < MxOD + 1; ++i )
-    {
-        for( j = 0; j < MxOD + 1; ++j )
-        {
-            fprintf( stdout, "vgh[%d][%d]=%f\n", i, j, vgh[ i ][ j ] );
-        }
-    }
-    for( i = 0; i < MxOD + 1; ++i )
-    {
-        for( j = 0; j < MxOD + 1; ++j )
-        {
-            fprintf( stdout, "vght[%d][%d]=%f\n", i, j, vght[ i ][ j ] );
-        }
-    }
-    for( i = 0; i < MxOD + 1; ++i )
-    {
-        for( j = 0; j < MxOD + 1; ++j )
-        {
-            fprintf( stdout, "g[%d][%d]=%f\n", i, j, g[ i ][ j ] );
-        }
-    }
-
-    fprintf( stdout, "maxod = %d\n", maxod );
-    fprintf( stdout, "ra    = %f\n", ra );
-    fprintf( stdout, "rpre  = %f\n", rpre );
-    fprintf( stdout, "re    = %f\n", re );
-    fprintf( stdout, "re2   = %f\n", re2 );
-    fprintf( stdout, "re4   = %f\n", re4 );
-    fprintf( stdout, "rp    = %f\n", rp );
-    fprintf( stdout, "rp2   = %f\n", rp2 );
-    fprintf( stdout, "rp4   = %f\n", rp4 );
-    fprintf( stdout, "kg    = %f\n", kg );
-    fprintf( stdout, "kgc   = %f\n", kgc );
-    fprintf( stdout, "kph   = %f\n", kph );
-
-    return 0;
-#endif
 }
 
